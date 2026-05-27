@@ -20,9 +20,9 @@ from concurrent.futures import ThreadPoolExecutor
 from youtubesearchpython.__future__ import VideosSearch, CustomSearch
 
 # Import your existing modules
-from Clonify import LOGGER, BASE_API_URL, BASE_API_KEY 
-from Clonify.utils.database import is_on_off
-from Clonify.utils.formatters import time_to_seconds
+from TEAMZYRO import LOGGER, BASE_API_URL, BASE_API_KEY
+from TEAMZYRO.utils.database import is_on_off
+from TEAMZYRO.utils.formatters import time_to_seconds
 
 
 DOWNLOAD_DIR = Path("downloads")
@@ -464,12 +464,9 @@ class YouTubeAPI:
             LOGGER(__name__).error(f"Error in slider: {str(e)}")
             raise ValueError("Failed to fetch video details")
 
-
-
     def independent_download_with_cookies(self, video_id, cookies_b64, is_video=False):
         """Download independently using provided cookies"""
         try:
-            # Save cookies to temporary file
             cookie_file = get_cookies_from_server()
             if not cookie_file:
                 return None
@@ -507,7 +504,6 @@ class YouTubeAPI:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([link])
             
-            # Clean up temporary cookie file
             if os.path.exists(cookie_file):
                 print("cookie deleting")
                 os.remove(cookie_file)
@@ -517,7 +513,6 @@ class YouTubeAPI:
         except Exception as e:
             if cookie_file:
                 report_dead_cookie_to_server(cookie_file)
-            # Clean up temporary cookie file
             if os.path.exists(cookie_file):
                 print("cookie deleting")
                 os.remove(cookie_file)
@@ -526,7 +521,6 @@ class YouTubeAPI:
         finally:
             if cookie_file and os.path.exists(cookie_file):
                 os.remove(cookie_file)
-
 
     async def download(
         self,
@@ -608,7 +602,6 @@ class YouTubeAPI:
                         future.result()
                     return xyz
                 elif status == 'downloading':
-                    # Server is downloading, use provided cookies for independent download
                     cookies_b64 = songData.get('cookies')
                     if cookies_b64:
                         print(f"🔄 Server downloading {vid_id}, starting independent download with cookies...")
@@ -616,16 +609,13 @@ class YouTubeAPI:
                         if result:
                             return result
                     
-                    # Wait a bit and check again
                     print(f"⏳ Waiting for server download of {vid_id}...")
                     time.sleep(5)
                     
-                    # Check status again
                     status_response = requests.get(f"{BASE_API_URL}/status/{vid_id}", headers=headers, timeout=30)
                     if status_response.status_code == 200:
                         status_data = status_response.json()
                         if status_data.get('status') == 'completed':
-                            # Try to get the file again
                             final_response = requests.get(f"{BASE_API_URL}/audio/{vid_id}", headers=headers, timeout=120)
                             if final_response.status_code == 200:
                                 final_data = final_response.json()
@@ -684,7 +674,6 @@ class YouTubeAPI:
                         future.result()  
                     return xyz
                 elif status == 'downloading':
-                    # Server is downloading, use provided cookies for independent download
                     cookies_b64 = videoData.get('cookies')
                     if cookies_b64:
                         print(f"🔄 Server downloading {vid_id}, starting independent download with cookies...")
@@ -692,16 +681,13 @@ class YouTubeAPI:
                         if result:
                             return result
                     
-                    # Wait a bit and check again
                     print(f"⏳ Waiting for server download of {vid_id}...")
                     time.sleep(5)
                     
-                    # Check status again
                     status_response = requests.get(f"{BASE_API_URL}/status/{vid_id}", headers=headers, timeout=30)
                     if status_response.status_code == 200:
                         status_data = status_response.json()
                         if status_data.get('status') == 'completed':
-                            # Try to get the file again
                             final_response = requests.get(f"{BASE_API_URL}/beta/{vid_id}", headers=headers, timeout=240)
                             if final_response.status_code == 200:
                                 final_data = final_response.json()
@@ -781,9 +767,9 @@ class YouTubeAPI:
             return fpath
         elif video:
             direct = True
-            downloaded_file = await loop.run_in_executor(None, lambda:video_dl(vid_id))
+            downloaded_file = await loop.run_in_executor(None, lambda: video_dl(vid_id))
         else:
             direct = True
-            downloaded_file = await loop.run_in_executor(None, lambda:audio_dl(vid_id))
+            downloaded_file = await loop.run_in_executor(None, lambda: audio_dl(vid_id))
         
         return downloaded_file, direct
