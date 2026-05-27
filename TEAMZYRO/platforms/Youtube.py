@@ -19,10 +19,8 @@ from pyrogram.enums import MessageEntityType
 from concurrent.futures import ThreadPoolExecutor
 from youtubesearchpython.__future__ import VideosSearch, CustomSearch
 
-# Import your existing modules
-from Clonify import LOGGER, BASE_API_URL, BASE_API_KEY 
-from Clonify.utils.database import is_on_off
-from Clonify.utils.formatters import time_to_seconds
+from TEAMZYRO.logging import LOGGER
+from config import BASE_API_URL, BASE_API_KEY, time_to_seconds
 
 
 DOWNLOAD_DIR = Path("downloads")
@@ -38,7 +36,6 @@ def cookie_txt_file():
         folder_path = f"{os.getcwd()}/cookies"
         filename = f"{os.getcwd()}/cookies/logs.csv"
         
-        # Try to get existing cookie files
         if os.path.exists(folder_path):
             txt_files = glob.glob(os.path.join(folder_path, '*.txt'))
             if txt_files:
@@ -47,7 +44,6 @@ def cookie_txt_file():
                     file.write(f'Chosen File : {cookie_txt_file}\n')
                 return f"""cookies/{str(cookie_txt_file).split("/")[-1]}"""
         
-        # If no cookie files, try to get from server
         return get_cookies_from_server()
     except Exception as e:
         logger.error(f"Error getting cookie file: {e}")
@@ -55,7 +51,6 @@ def cookie_txt_file():
 
 def get_cookies_from_server():
     """Get cookies from the server API"""
-
     global COOKIE_NAME 
     try:
         if not BASE_API_KEY or not BASE_API_URL:
@@ -73,7 +68,6 @@ def get_cookies_from_server():
                 COOKIE_NAME = data.get("cookie_name")
                 cookie_content = base64.b64decode(data["cookies"]).decode()
                 
-                # Save to temporary file
                 temp_cookie_file = os.path.join(DOWNLOAD_DIR, "temp_cookies.txt")
                 with open(temp_cookie_file, "w", encoding="utf-8") as f:
                     f.write(cookie_content)
@@ -175,8 +169,6 @@ async def shell_cmd(cmd):
     return out.decode("utf-8")
 
 
-
-
 class YouTubeAPI:
     def __init__(self):
         self.base = "https://www.youtube.com/watch?v="
@@ -199,7 +191,7 @@ class YouTubeAPI:
             if search_results:
                 return search_results[0]
             
-            search = CustomSearch(query=link, searchPreferences="EgIYAw==" ,limit=1)
+            search = CustomSearch(query=link, searchPreferences="EgIYAw==", limit=1)
             for res in (await search.next()).get("result", []):
                 return res
 
@@ -464,12 +456,10 @@ class YouTubeAPI:
             LOGGER(__name__).error(f"Error in slider: {str(e)}")
             raise ValueError("Failed to fetch video details")
 
-
-
     def independent_download_with_cookies(self, video_id, cookies_b64, is_video=False):
         """Download independently using provided cookies"""
+        cookie_file = None
         try:
-            # Save cookies to temporary file
             cookie_file = get_cookies_from_server()
             if not cookie_file:
                 return None
@@ -507,26 +497,17 @@ class YouTubeAPI:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([link])
             
-            # Clean up temporary cookie file
-            if os.path.exists(cookie_file):
-                print("cookie deleting")
-                os.remove(cookie_file)
-            
             return output_file if os.path.exists(output_file) else None
             
         except Exception as e:
             if cookie_file:
                 report_dead_cookie_to_server(cookie_file)
-            # Clean up temporary cookie file
-            if os.path.exists(cookie_file):
-                print("cookie deleting")
-                os.remove(cookie_file)
             logger.error(f"Independent download error: {e}")
             return None
         finally:
             if cookie_file and os.path.exists(cookie_file):
+                print("cookie deleting")
                 os.remove(cookie_file)
-
 
     async def download(
         self,
@@ -554,13 +535,6 @@ class YouTubeAPI:
             return str(file_path), True
             
         loop = asyncio.get_running_loop()
-
-        def create_session():
-            session = requests.Session()
-            retries = Retry(total=3, backoff_factor=0.1)
-            session.mount('http://', HTTPAdapter(max_retries=retries))
-            session.mount('https://', HTTPAdapter(max_retries=retries))
-            return session
 
         def get_ydl_opts(output_path):
             cookie_file = cookie_txt_file()
@@ -608,7 +582,6 @@ class YouTubeAPI:
                         future.result()
                     return xyz
                 elif status == 'downloading':
-                    # Server is downloading, use provided cookies for independent download
                     cookies_b64 = songData.get('cookies')
                     if cookies_b64:
                         print(f"🔄 Server downloading {vid_id}, starting independent download with cookies...")
@@ -616,16 +589,13 @@ class YouTubeAPI:
                         if result:
                             return result
                     
-                    # Wait a bit and check again
                     print(f"⏳ Waiting for server download of {vid_id}...")
                     time.sleep(5)
                     
-                    # Check status again
                     status_response = requests.get(f"{BASE_API_URL}/status/{vid_id}", headers=headers, timeout=30)
                     if status_response.status_code == 200:
                         status_data = status_response.json()
                         if status_data.get('status') == 'completed':
-                            # Try to get the file again
                             final_response = requests.get(f"{BASE_API_URL}/audio/{vid_id}", headers=headers, timeout=120)
                             if final_response.status_code == 200:
                                 final_data = final_response.json()
@@ -684,7 +654,6 @@ class YouTubeAPI:
                         future.result()  
                     return xyz
                 elif status == 'downloading':
-                    # Server is downloading, use provided cookies for independent download
                     cookies_b64 = videoData.get('cookies')
                     if cookies_b64:
                         print(f"🔄 Server downloading {vid_id}, starting independent download with cookies...")
@@ -692,16 +661,13 @@ class YouTubeAPI:
                         if result:
                             return result
                     
-                    # Wait a bit and check again
                     print(f"⏳ Waiting for server download of {vid_id}...")
                     time.sleep(5)
                     
-                    # Check status again
                     status_response = requests.get(f"{BASE_API_URL}/status/{vid_id}", headers=headers, timeout=30)
                     if status_response.status_code == 200:
                         status_data = status_response.json()
                         if status_data.get('status') == 'completed':
-                            # Try to get the file again
                             final_response = requests.get(f"{BASE_API_URL}/beta/{vid_id}", headers=headers, timeout=240)
                             if final_response.status_code == 200:
                                 final_data = final_response.json()
@@ -781,9 +747,9 @@ class YouTubeAPI:
             return fpath
         elif video:
             direct = True
-            downloaded_file = await loop.run_in_executor(None, lambda:video_dl(vid_id))
+            downloaded_file = await loop.run_in_executor(None, lambda: video_dl(vid_id))
         else:
             direct = True
-            downloaded_file = await loop.run_in_executor(None, lambda:audio_dl(vid_id))
+            downloaded_file = await loop.run_in_executor(None, lambda: audio_dl(vid_id))
         
         return downloaded_file, direct
