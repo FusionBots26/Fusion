@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pyrogram.types import Message
 from pyrogram.enums import MessageEntityType
 
-from youtubesearchpython.__future__ import VideosSearch, CustomSearch
+from youtubesearchpython.__future__ import VideosSearch
 
 from TEAMZYRO.logging import LOGGER
 from config import BASE_API_URL, BASE_API_KEY, time_to_seconds
@@ -29,14 +29,14 @@ COOKIE_NAME = None
 logger = LOGGER(__name__)
 
 
-def safe_filename(name: str) -> str:
+def safe_filename(name: str):
     if not name:
         name = f"file_{int(time.time())}"
 
     return re.sub(r'[\\/*?:"<>|]', "_", str(name))
 
 
-def safe_thumbnail(result: dict):
+def safe_thumbnail(result):
     try:
         thumbs = result.get("thumbnails") or []
 
@@ -65,20 +65,20 @@ def cookie_txt_file():
         filename = f"{os.getcwd()}/cookies/logs.csv"
 
         if os.path.exists(folder_path):
-            txt_files = glob.glob(os.path.join(folder_path, "*.txt"))
+            txt_files = glob.glob(os.path.join(folder_path, '*.txt'))
 
             if txt_files:
                 selected = random.choice(txt_files)
 
-                with open(filename, "a") as file:
-                    file.write(f"Chosen File : {selected}\n")
+                with open(filename, 'a') as file:
+                    file.write(f'Chosen File : {selected}\n')
 
                 return selected
 
         return get_cookies_from_server()
 
     except Exception as e:
-        logger.error(f"Cookie file error: {e}")
+        logger.error(f"Cookie error: {e}")
         return None
 
 
@@ -91,7 +91,7 @@ def get_cookies_from_server():
 
         headers = {
             "x-api-key": BASE_API_KEY,
-            "User-Agent": "Mozilla/5.0",
+            "User-Agent": "Mozilla/5.0"
         }
 
         response = requests.get(
@@ -103,7 +103,11 @@ def get_cookies_from_server():
         if response.status_code != 200:
             return None
 
-        data = response.json()
+        try:
+            data = response.json()
+        except Exception:
+            logger.error(f"Invalid cookie API response: {response.text}")
+            return None
 
         if data.get("status") != "success":
             return None
@@ -125,7 +129,7 @@ def get_cookies_from_server():
         return temp_cookie_file
 
     except Exception as e:
-        logger.error(f"Server cookie error: {e}")
+        logger.error(f"Cookie server error: {e}")
         return None
 
 
@@ -185,35 +189,54 @@ class YouTubeAPI:
         self,
         link: str,
         limit: int = 5,
-    ) -> Union[dict, None]:
+    ):
 
         try:
-            results = VideosSearch(link, limit=limit)
 
-            data = await results.next()
+            link = str(link).strip()
 
-            search_results = data.get("result", [])
+            if "youtube.com" in link or "youtu.be" in link:
 
-            if search_results:
-                return search_results[0]
+                video_id = None
 
-            search = CustomSearch(
-                query=link,
-                searchPreferences="EgIYAw==",
-                limit=1,
+                if "v=" in link:
+                    video_id = (
+                        link.split("v=")[-1]
+                        .split("&")[0]
+                        .strip()
+                    )
+
+                elif "youtu.be/" in link:
+                    video_id = (
+                        link.split("youtu.be/")[-1]
+                        .split("?")[0]
+                        .strip()
+                    )
+
+                return {
+                    "title": "YouTube Video",
+                    "duration": "0:00",
+                    "id": video_id,
+                    "link": link,
+                    "thumbnails": [],
+                }
+
+            search = VideosSearch(
+                link,
+                limit=limit,
             )
 
-            custom_data = await search.next()
+            data = await search.next()
 
-            custom_results = custom_data.get("result", [])
+            results = data.get("result", [])
 
-            if custom_results:
-                return custom_results[0]
+            if not results:
+                return None
 
-            return None
+            return results[0]
 
         except Exception as e:
-            logger.error(f"_get_video_details error: {e}")
+            logger.error(f"_get_video_details fatal: {e}")
             return None
 
     async def exists(self, link: str, videoid=False):
@@ -261,7 +284,7 @@ class YouTubeAPI:
         if not result:
             raise ValueError("Video unavailable")
 
-        title = result.get("title") or "Unknown Title"
+        title = result.get("title") or "Unknown"
 
         duration_min = result.get("duration") or "0:00"
 
@@ -273,9 +296,7 @@ class YouTubeAPI:
         thumbnail = safe_thumbnail(result)
 
         try:
-            duration_sec = int(
-                time_to_seconds(duration_min)
-            )
+            duration_sec = int(time_to_seconds(duration_min))
         except Exception:
             duration_sec = 0
 
@@ -308,18 +329,15 @@ class YouTubeAPI:
         if not result:
             raise ValueError("Video unavailable")
 
-        vidid = result.get("id")
-
-        if not vidid:
-            raise ValueError("Missing video ID")
-
-        return {
+        track_details = {
             "title": result.get("title") or "Unknown",
             "link": result.get("link") or link,
-            "vidid": vidid,
+            "vidid": result.get("id"),
             "duration_min": result.get("duration") or "0:00",
             "thumb": safe_thumbnail(result),
-        }, vidid
+        }
+
+        return track_details, result.get("id")
 
     async def video(self, link: str, videoid=False):
         if videoid:
@@ -351,13 +369,7 @@ class YouTubeAPI:
 
         return 0, stderr.decode()
 
-    async def playlist(
-        self,
-        link,
-        limit,
-        user_id,
-        videoid=False,
-    ):
+    async def playlist(self, link, limit, user_id, videoid=False):
         if videoid:
             link = self.listbase + link
 
@@ -375,11 +387,48 @@ class YouTubeAPI:
 
         playlist = await shell_cmd(cmd)
 
-        return [
+        result = [
             x.strip()
             for x in playlist.split("\n")
             if x.strip()
         ]
+
+        return result
+
+    async def slider(
+        self,
+        link: str,
+        query_type: int,
+        videoid=False,
+    ):
+        try:
+            if videoid:
+                link = self.base + link
+
+            search = VideosSearch(link, limit=10)
+
+            data = await search.next()
+
+            results = data.get("result", [])
+
+            if not results:
+                raise ValueError("No videos found")
+
+            if query_type >= len(results):
+                raise ValueError("Invalid query index")
+
+            selected = results[query_type]
+
+            return (
+                selected.get("title") or "Unknown",
+                selected.get("duration") or "0:00",
+                safe_thumbnail(selected),
+                selected.get("id"),
+            )
+
+        except Exception as e:
+            logger.error(f"slider error: {e}")
+            raise ValueError("Failed to fetch video details")
 
     async def formats(self, link, videoid=False):
         if videoid:
@@ -418,9 +467,7 @@ class YouTubeAPI:
                         "filesize": fmt.get("filesize"),
                         "format_id": fmt.get("format_id"),
                         "ext": fmt.get("ext"),
-                        "format_note": fmt.get(
-                            "format_note"
-                        ),
+                        "format_note": fmt.get("format_note"),
                         "yturl": link,
                     }
                 )
@@ -554,7 +601,13 @@ class YouTubeAPI:
                 timeout=240,
             )
 
-            data = response.json()
+            try:
+                data = response.json()
+            except Exception:
+                logger.error(
+                    f"Invalid API response: {response.text}"
+                )
+                return None
 
             status = data.get("status")
 
@@ -591,4 +644,4 @@ class YouTubeAPI:
 
         except Exception as e:
             logger.error(f"download() error: {e}")
-            raise
+            return None
