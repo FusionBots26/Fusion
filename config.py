@@ -10,7 +10,7 @@ load_dotenv()
 API_ID = int(getenv("API_ID"))
 API_HASH = getenv("API_HASH")
 
-BASE_API_URL = getenv("BASE_API_URL", "https://zyro.zyronetworks.shop")
+BASE_API_URL = getenv("BASE_API_URL", "https://tgapi.xbitcode.com")
 BASE_API_KEY = getenv("BASE_API_KEY", "")
 
 # Get your token from @BotFather on Telegram.
